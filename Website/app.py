@@ -9,14 +9,8 @@ import functions
 app = Flask(__name__)
 app.secret_key = 'devkey'
 
-
-@app.before_first_request
-def init_data():
-    """
-    Initialize data files on first request.
-    If files do not exist, they are created with dummy data.
-    """
-    functions.init_data_files()
+# Initialize data files once at startup
+functions.init_data_files()
 
 
 @app.route('/')
