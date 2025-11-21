@@ -1,3 +1,24 @@
+# === ADDED FOR FILE STORAGE ===
+import os
+import json
+
+# Base paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))      # .../Pythoncode
+PROJECT_ROOT = os.path.dirname(BASE_DIR)                   # .../FinalDevopsProject
+
+# Data directory:
+# - if DATA_DIR env var is set (Docker/K8s) – use it
+# - otherwise default to Website/data
+DATA_DIR = os.getenv("DATA_DIR")
+if not DATA_DIR:
+    DATA_DIR = os.path.join(PROJECT_ROOT, "Website", "data")
+
+CLIENTS_FILE = os.path.join(DATA_DIR, "clients.json")
+LOANS_FILE = os.path.join(DATA_DIR, "loans.json")
+TREASURY_FILE = os.path.join(DATA_DIR, "treasury.json")
+# === END ADDED FOR FILE STORAGE ===
+
+
 def create_client(clients, name, email, phone):
     new_client = {
         "id": len(clients) + 1,
@@ -8,6 +29,7 @@ def create_client(clients, name, email, phone):
     clients.append(new_client)
     return new_client
 
+
 def validate_client_data(name, email, phone):
     errors = []
     if not name:
@@ -17,6 +39,7 @@ def validate_client_data(name, email, phone):
     if not phone.isdigit() or not (9 <= len(phone) <= 15):
         errors.append("Phone number must be digits only (9–15 digits).")
     return errors
+
 
 def create_loan(loans, client_id, amount, interest_rate, term_months):
     new_loan = {
@@ -29,6 +52,7 @@ def create_loan(loans, client_id, amount, interest_rate, term_months):
     }
     loans.append(new_loan)
     return new_loan
+
 
 def validate_loan_data(client_id, amount, interest_rate, term_months, clients):
     errors = []
@@ -43,12 +67,13 @@ def validate_loan_data(client_id, amount, interest_rate, term_months, clients):
     return errors
 
 
-
 def generate_schedule(amount, rate, months):
     annual_rate = rate / 100
     monthly_rate = annual_rate / 12
     try:
-        monthly_payment = amount * (monthly_rate * (1 + monthly_rate)**months) / ((1 + monthly_rate)**months - 1)
+        monthly_payment = amount * (monthly_rate * (1 + monthly_rate) ** months) / (
+            (1 + monthly_rate) ** months - 1
+        )
     except ZeroDivisionError:
         monthly_payment = 0
 
@@ -73,13 +98,11 @@ def get_client_loans(client_id, loans):
     return [loan for loan in loans if loan['client_id'] == client_id]
 
 
-
 def get_client_name(client_id, clients):
     for c in clients:
         if c['id'] == client_id:
             return c['name']
     return 'Unknown'
-
 
 
 def build_loan_list_with_names(loans, clients):
@@ -122,7 +145,7 @@ def calculate_due_per_client(loans, clients):
                         'client_name': client['name'],
                         'payment': row['payment']
                     })
-                    total =total+ row['payment']
+                    total = total + row['payment']
                     seen_clients.add(client['id'])
                     break
             if client['id'] in seen_clients:
@@ -164,11 +187,86 @@ def load_mock_data_from_functions():
         {"client_id": 3, "amount": 20000, "interest_rate": 3.5, "term_months": 36},
         {"client_id": 4, "amount": 12000, "interest_rate": 4.0, "term_months": 18},
         {"client_id": 5, "amount": 9000, "interest_rate": 5.5, "term_months": 20}
-        
     ]
     loans = []
     for i, loan in enumerate(raw_loans):
         loan['id'] = i + 1
-        loan['schedule'] = generate_schedule(loan['amount'], loan['interest_rate'], loan['term_months'])
+        loan['schedule'] = generate_schedule(
+            loan['amount'],
+            loan['interest_rate'],
+            loan['term_months']
+        )
         loans.append(loan)
     return clients, loans
+
+
+# === ADDED FOR FILE STORAGE ===
+def init_data_files():
+    """
+    Initialize data files.
+    If files do not exist yet, create them based on load_mock_data_from_functions().
+    """
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    if not (
+        os.path.exists(CLIENTS_FILE)
+        and os.path.exists(LOANS_FILE)
+        and os.path.exists(TREASURY_FILE)
+    ):
+        clients, loans = load_mock_data_from_functions()
+        save_clients(clients)
+        save_loans(loans)
+        save_treasury(0.0)
+
+
+def _ensure_initialized():
+    """
+    Internal helper: if files do not exist yet, initialize them.
+    """
+    if not (
+        os.path.exists(CLIENTS_FILE)
+        and os.path.exists(LOANS_FILE)
+        and os.path.exists(TREASURY_FILE)
+    ):
+        init_data_files()
+
+
+def load_clients():
+    _ensure_initialized()
+    with open(CLIENTS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_clients(clients):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(CLIENTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(clients, f, ensure_ascii=False, indent=2)
+
+
+def load_loans():
+    _ensure_initialized()
+    with open(LOANS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_loans(loans):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(LOANS_FILE, "w", encoding="utf-8") as f:
+        json.dump(loans, f, ensure_ascii=False, indent=2)
+
+
+def load_treasury():
+    _ensure_initialized()
+    try:
+        with open(TREASURY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return float(data.get("treasury_balance", 0.0))
+    except (FileNotFoundError, json.JSONDecodeError, TypeError, ValueError):
+        return 0.0
+
+
+def save_treasury(value):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(TREASURY_FILE, "w", encoding="utf-8") as f:
+        json.dump({"treasury_balance": float(value)}, f, ensure_ascii=False, indent=2)
+# === END ADDED FOR FILE STORAGE ===
