@@ -1,28 +1,22 @@
-FROM ubuntu:20.04
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        python3 python3-pip && \
-    rm -rf /var/lib/apt/lists/*
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Python logic
-COPY ./Pythoncode/functions.py ./functions.py
-COPY ./Pythoncode/test_functions.py ./test_functions.py
+# Do not create .pyc files and force stdout/stderr to be unbuffered
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Flask app
-COPY ./Website/app.py ./app.py
+# Install dependencies
+RUN pip install --no-cache-dir flask
 
-# Templates and static files (включая Bootstrap локально)
-COPY ./Website/templates ./templates
-COPY ./Website/static ./static
+# Copy project files
+COPY Pythoncode ./Pythoncode
+COPY Website ./Website
 
-RUN pip3 install --no-cache-dir flask gunicorn pytest
+# Data directory inside the container (NFS mount in Kubernetes)
+ENV DATA_DIR=/data
+VOLUME ["/data"]
 
-EXPOSE 80
+EXPOSE 5000
 
-RUN pytest
-CMD ["gunicorn", "-b", "0.0.0.0:80", "app:app"]
+CMD ["python", "Website/app.py"]

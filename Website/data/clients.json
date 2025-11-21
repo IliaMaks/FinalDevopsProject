@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "name": "Basil",
+    "email": "Basil@example.com",
+    "phone": "0521234567"
+  },
+  {
+    "id": 2,
+    "name": "Eli",
+    "email": "Eli@example.com",
+    "phone": "0529876543"
+  },
+  {
+    "id": 3,
+    "name": "Avi",
+    "email": "Avi@example.com",
+    "phone": "0532223344"
+  },
+  {
+    "id": 4,
+    "name": "Alex",
+    "email": "Eli@example.com",
+    "phone": "0541112233"
+  },
+  {
+    "id": 5,
+    "name": "Desmond",
+    "email": "Desmond@example.com",
+    "phone": "0505566778"
+  },
+  {
+    "id": 6,
+    "name": "inna",
+    "email": "inna@gmail.com",
+    "phone": "0547614542"
+  }
+]
