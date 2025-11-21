@@ -6,13 +6,26 @@ on:
     branches: [ master ]
 
 jobs:
-  build-test-docker:
+  build-test-deploy:
     runs-on: ubuntu-latest
 
+    env:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN:     ${{ secrets.AWS_SESSION_TOKEN }}
+      AWS_REGION:            ${{ secrets.AWS_REGION }}
+
     steps:
+      # --------------------------
+      # CHECKOUT REPOSITORY
+      # --------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      # --------------------------
+      # PYTHON TESTS
+      # --------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -23,6 +36,10 @@ jobs:
           cd Pythoncode
           python -m pytest || echo "No tests yet, skipping"
 
+
+      # --------------------------
+      # DOCKER BUILD & PUSH
+      # --------------------------
       - name: Build Docker image
         run: |
           docker build -t 04unit04/final-devops-bank-app:latest .
@@ -34,3 +51,18 @@ jobs:
       - name: Push Docker image
         run: |
           docker push 04unit04/final-devops-bank-app:latest
+
+
+      # --------------------------
+      # TERRAFORM INIT & APPLY
+      # --------------------------
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve
