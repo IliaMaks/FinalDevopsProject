@@ -211,10 +211,3 @@ resource "aws_lb_listener" "http_listener" {
   }
 }
 
-##############################
-# Outputs
-##############################
-
-output "alb_dns" {
-  value = aws_lb.alb.dns_name
-}
