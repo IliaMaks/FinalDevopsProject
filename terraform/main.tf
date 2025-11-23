@@ -138,11 +138,14 @@ resource "aws_security_group" "ec2_sg" {
 ##############################
 
 resource "aws_instance" "nodes" {
-  count               = 3
-  ami                 = var.ec2_ami
-  instance_type       = var.ec2_type
-  subnet_id           = (count.index % 2 == 0 ? aws_subnet.public_a.id : aws_subnet.public_b.id)
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  count                   = 3
+  ami                     = var.ec2_ami
+  instance_type           = var.ec2_type
+  subnet_id               = (count.index % 2 == 0 ? aws_subnet.public_a.id : aws_subnet.public_b.id)
+  vpc_security_group_ids  = [aws_security_group.ec2_sg.id]
+
+ 
+  key_name = "vockey"
 
   tags = {
     Name = "final-devops-node-${count.index + 1}"
@@ -210,4 +213,3 @@ resource "aws_lb_listener" "http_listener" {
     target_group_arn = aws_lb_target_group.tg.arn
   }
 }
-
