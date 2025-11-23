@@ -1,0 +1,44 @@
+---
+- name: Configure EC2 nodes and run application
+  hosts: ec2_nodes
+  become: yes
+  gather_facts: false
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  tasks:
+
+    - name: Install Python3, pip3 and Docker
+      ansible.builtin.yum:
+        name:
+          - python3
+          - python3-pip
+          - docker
+        state: present
+
+    - name: Enable and start Docker
+      ansible.builtin.service:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Install Docker SDK for Python
+      ansible.builtin.pip:
+        name: docker
+        executable: pip3
+
+    - name: Pull application image
+      community.docker.docker_image:
+        name: "04unit04/final-devops-bank-app:latest"
+        source: pull
+
+    - name: Run app container
+      community.docker.docker_container:
+        name: "bank-app"
+        image: "04unit04/final-devops-bank-app:latest"
+        state: started
+        restart_policy: always
+        published_ports:
+          - "80:80"
+        detach: true

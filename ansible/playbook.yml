@@ -4,41 +4,28 @@
   become: yes
   gather_facts: false
 
-  vars:
-    ansible_python_interpreter: /usr/bin/python3
-
   tasks:
 
     - name: Install Python3, pip3 and Docker
-      ansible.builtin.yum:
-        name:
-          - python3
-          - python3-pip
-          - docker
-        state: present
+      raw: |
+        if command -v yum >/dev/null 2>&1; then
+          sudo yum install -y python3 python3-pip docker
+        elif command -v dnf >/dev/null 2>&1; then
+          sudo dnf install -y python3 python3-pip docker
+        elif command -v apt-get >/dev/null 2>&1; then
+          sudo apt-get update -y
+          sudo apt-get install -y python3 python3-pip docker.io
+        fi
 
-    - name: Enable and start Docker
-      ansible.builtin.service:
-        name: docker
-        enabled: yes
-        state: started
+    - name: Enable and start Docker service
+      raw: |
+        sudo systemctl enable docker || true
+        sudo systemctl start docker || true
 
-    - name: Install Docker SDK for Python
-      ansible.builtin.pip:
-        name: docker
-        executable: pip3
-
-    - name: Pull application image
-      community.docker.docker_image:
-        name: "04unit04/final-devops-bank-app:latest"
-        source: pull
-
-    - name: Run app container
-      community.docker.docker_container:
-        name: "bank-app"
-        image: "04unit04/final-devops-bank-app:latest"
-        state: started
-        restart_policy: always
-        published_ports:
-          - "80:80"
-        detach: true
+    - name: Pull and run bank-app container
+      raw: |
+        sudo docker pull 04unit04/final-devops-bank-app:latest
+        if sudo docker ps -a --format '{{.Names}}' | grep -q '^bank-app$'; then
+          sudo docker rm -f bank-app
+        fi
+        sudo docker run -d --name bank-app -p 80:80 --restart=always 04unit04/final-devops-bank-app:latest
