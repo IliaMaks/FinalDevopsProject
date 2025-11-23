@@ -1,93 +1,44 @@
-name: CI-CD Final DevOps Project
+---
+- name: Configure EC2 nodes and run application
+  hosts: ec2_nodes
+  become: yes
+  gather_facts: false
 
-on:
-  workflow_dispatch:
-  push:
-    branches: [ master ]
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
 
-jobs:
-  build-test-deploy:
-    runs-on: ubuntu-latest
+  tasks:
 
-    env:
-      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN:     ${{ secrets.AWS_SESSION_TOKEN }}
-      AWS_REGION:            ${{ secrets.AWS_REGION }}
+    - name: Install Python3, pip3 and Docker
+      ansible.builtin.yum:
+        name:
+          - python3
+          - python3-pip
+          - docker
+        state: present
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Enable and start Docker
+      ansible.builtin.service:
+        name: docker
+        enabled: yes
+        state: started
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+    - name: Install Docker SDK for Python
+      ansible.builtin.pip:
+        name: docker
+        executable: pip3
 
-      - name: Run unit tests
-        run: |
-          cd Pythoncode
-          python -m pytest || echo "No tests yet, skipping"
+    - name: Pull application image
+      community.docker.docker_image:
+        name: "04unit04/final-devops-bank-app:latest"
+        source: pull
 
-      - name: Build Docker image
-        run: |
-          docker build -t 04unit04/final-devops-bank-app:latest .
-
-      - name: Login to Docker Hub
-        run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "04unit04" --password-stdin
-
-      - name: Push Docker image
-        run: |
-          docker push 04unit04/final-devops-bank-app:latest
-
-      - name: Install Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Init
-        working-directory: ./terraform
-        run: terraform init
-
-      - name: Terraform Apply
-        working-directory: ./terraform
-        run: terraform apply -auto-approve
-
-      - name: Write SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.AWS_SSH_KEY }}" > ~/.ssh/vockey.pem
-          chmod 600 ~/.ssh/vockey.pem
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
-      - name: Generate Ansible inventory
-        working-directory: ./terraform
-        run: |
-          ips=$(terraform output -json ec2_public_ips | jq -r '.[]')
-
-          echo "[ec2_nodes]" > ../ansible/inventory.ini
-          for ip in $ips; do
-            echo "$ip" >> ../ansible/inventory.ini
-          done
-
-          {
-            echo ""
-            echo "[ec2_nodes:vars]"
-            echo "ansible_user=ec2-user"
-            echo "ansible_ssh_private_key_file=$HOME/.ssh/vockey.pem"
-            echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
-          } >> ../ansible/inventory.ini
-
-      - name: Install Ansible and collections
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ansible python3-pip
-          ansible-galaxy collection install community.docker
-
-      - name: Run Ansible playbook
-        working-directory: ./ansible
-        run: |
-          ansible-playbook -i inventory.ini playbook.yml
+    - name: Run app container
+      community.docker.docker_container:
+        name: "bank-app"
+        image: "04unit04/final-devops-bank-app:latest"
+        state: started
+        restart_policy: always
+        published_ports:
+          - "80:80"
+        detach: true
