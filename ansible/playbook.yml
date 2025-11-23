@@ -2,8 +2,17 @@
 - name: Configure EC2 nodes and run application
   hosts: ec2_nodes
   become: yes
+  gather_facts: false   
 
   tasks:
+
+    - name: Ensure Python3 is installed (raw mode, no JSON)
+      raw: |
+        if command -v yum >/dev/null 2>&1; then
+          sudo yum install -y python3
+        elif command -v apt-get >/dev/null 2>&1; then
+          sudo apt-get update -y && sudo apt-get install -y python3
+        fi
 
     - name: Install Docker
       yum:
