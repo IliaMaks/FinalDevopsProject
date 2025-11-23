@@ -1,0 +1,40 @@
+---
+- name: Configure EC2 nodes and run application
+  hosts: ec2_nodes
+  become: yes
+
+  tasks:
+
+    - name: Install Docker
+      yum:
+        name: docker
+        state: present
+
+    - name: Start & enable Docker
+      service:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Install pip3
+      yum:
+        name: python3-pip
+        state: present
+
+    - name: Install docker-py (Python Docker SDK)
+      pip:
+        name: docker
+
+    - name: Pull application image
+      community.docker.docker_image:
+        name: "04unit04/final-devops-bank-app:latest"
+        source: pull
+
+    - name: Run app container
+      community.docker.docker_container:
+        name: "bank-app"
+        image: "04unit04/final-devops-bank-app:latest"
+        state: started
+        restart_policy: always
+        published_ports:
+          - "80:80"
