@@ -1,0 +1,20 @@
+replicaCount: 3
+
+image:
+  repository: 04unit04/final-devops-bank-app
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer      
+  port: 80                
+  targetPort: 5000        
+
+resources: {}
+
+nfs:
+  enabled: true
+  server: "10.0.0.10"           
+  path: "/srv/nfs/bank-app"     
+  size: "1Gi"
+  mountPath: "/app/data"        

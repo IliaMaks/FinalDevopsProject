@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bank-app.fullname" . }}
+  labels:
+    app: {{ include "bank-app.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "bank-app.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "bank-app.name" . }}
+    spec:
+      containers:
+        - name: bank-app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          {{- if .Values.nfs.enabled }}
+          volumeMounts:
+            - name: app-data
+              mountPath: {{ .Values.nfs.mountPath }}
+          {{- end }}
+      {{- if .Values.nfs.enabled }}
+      volumes:
+        - name: app-data
+          persistentVolumeClaim:
+            claimName: {{ include "bank-app.fullname" . }}-pvc
+      {{- end }}
