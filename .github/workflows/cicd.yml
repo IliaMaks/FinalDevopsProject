@@ -50,8 +50,8 @@ jobs:
 
       - name: Terraform Destroy (cleanup previous run)
         working-directory: ./terraform
-        run: terraform destroy -auto-approve || true 
-        
+        run: terraform destroy -auto-approve || true
+
       - name: Terraform Apply
         working-directory: ./terraform
         run: terraform apply -auto-approve
@@ -80,7 +80,7 @@ jobs:
           {
             echo ""
             echo "[ec2_nodes:vars]"
-            echo "ansible_user=ec2-user"
+            echo "ansible_user=ubuntu"
             echo "ansible_ssh_private_key_file=~/.ssh/vockey.pem"
             echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
           } >> ../ansible/inventory.ini
