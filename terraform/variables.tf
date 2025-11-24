@@ -8,6 +8,6 @@ variable "ec2_type" {
 }
 
 variable "ec2_ami" {
-  description = "Amazon Linux 2 AMI for region us-east-1"
-  default     = "ami-0c02fb55956c7d316"
+  description = "Ubuntu Server 22.04 LTS (HVM), SSD Volume Type — us-east-1"
+  default     = "ami-0c398cb65a93047f2"
 }
