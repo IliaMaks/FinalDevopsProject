@@ -15,26 +15,25 @@
           - python3
           - python3-pip
           - docker.io
-        state: present
         update_cache: yes
+        state: present
 
-    - name: Enable and start Docker service
+    - name: Enable and start Docker
       service:
         name: docker
         state: started
         enabled: yes
 
-    - name: Pull bank-app image
+    - name: Pull image
       shell: docker pull 04unit04/final-devops-bank-app:latest
-      args:
-        warn: false
 
-    - name: Remove existing bank-app container if present
+    - name: Stop old container if exists
       shell: docker rm -f bank-app || true
-      args:
-        warn: false
 
-    - name: Run bank-app container
-      shell: docker run -d --name bank-app -p 80:80 --restart always 04unit04/final-devops-bank-app:latest
-      args:
-        warn: false
+    - name: Run container
+      shell: |
+        docker run -d \
+          --name bank-app \
+          -p 80:80 \
+          --restart always \
+          04unit04/final-devops-bank-app:latest
