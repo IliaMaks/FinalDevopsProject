@@ -4,28 +4,41 @@
   become: yes
   gather_facts: false
 
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
   tasks:
 
     - name: Install Python3, pip3 and Docker
-      raw: |
-        if command -v yum >/dev/null 2>&1; then
-          sudo yum install -y python3 python3-pip docker
-        elif command -v dnf >/dev/null 2>&1; then
-          sudo dnf install -y python3 python3-pip docker
-        elif command -v apt-get >/dev/null 2>&1; then
-          sudo apt-get update -y
-          sudo apt-get install -y python3 python3-pip docker.io
-        fi
+      yum:
+        name:
+          - python3
+          - python3-pip
+          - docker
+        state: present
 
-    - name: Enable and start Docker service
-      raw: |
-        sudo systemctl enable docker || true
-        sudo systemctl start docker || true
+    - name: Enable and start Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
 
-    - name: Pull and run bank-app container
-      raw: |
-        sudo docker pull 04unit04/final-devops-bank-app:latest
-        if sudo docker ps -a --format '{{.Names}}' | grep -q '^bank-app$'; then
-          sudo docker rm -f bank-app
-        fi
-        sudo docker run -d --name bank-app -p 80:80 --restart=always 04unit04/final-devops-bank-app:latest
+    - name: Install Docker SDK for Python
+      pip:
+        name: docker
+        executable: pip3
+
+    - name: Pull bank-app image
+      community.docker.docker_image:
+        name: 04unit04/final-devops-bank-app:latest
+        source: pull
+
+    - name: Run bank-app container
+      community.docker.docker_container:
+        name: bank-app
+        image: 04unit04/final-devops-bank-app:latest
+        state: started
+        restart_policy: always
+        published_ports:
+          - "80:80"
+        detach: true
