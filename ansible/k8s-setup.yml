@@ -1,0 +1,177 @@
+---
+- name: Prepare all nodes for Kubernetes
+  hosts: ec2_nodes
+  become: yes
+  gather_facts: yes
+
+  vars:
+    kube_version: "1.30.0-1.1"
+
+  tasks:
+    - name: Disable swap (runtime)
+      command: swapoff -a
+      when: ansible_swaptotal_mb | default(0) > 0
+
+    - name: Disable swap in /etc/fstab
+      replace:
+        path: /etc/fstab
+        regexp: '^(.*\s+swap\s+.*)$'
+        replace: '# \1'
+
+    - name: Load kernel modules for Kubernetes
+      copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+      mode: '0644'
+
+    - name: Ensure kernel modules are loaded
+      shell: |
+        modprobe overlay
+        modprobe br_netfilter
+
+    - name: Set sysctl params for Kubernetes
+      copy:
+        dest: /etc/sysctl.d/k8s.conf
+        content: |
+          net.bridge.bridge-nf-call-iptables = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.ipv4.ip_forward = 1
+      mode: '0644'
+
+    - name: Apply sysctl params
+      command: sysctl --system
+
+    - name: Install dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Add Kubernetes apt key
+      apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+
+    - name: Add Kubernetes apt repository
+      apt_repository:
+        repo: "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+        state: present
+        filename: kubernetes
+
+    - name: Install containerd
+      apt:
+        name:
+          - containerd
+        state: present
+        update_cache: yes
+
+    - name: Create containerd config directory
+      file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+
+    - name: Generate default containerd config
+      shell: "containerd config default > /etc/containerd/config.toml"
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: Set SystemdCgroup = true in containerd config
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+
+    - name: Restart and enable containerd
+      systemd:
+        name: containerd
+        state: restarted
+        enabled: yes
+
+    - name: Install kubelet, kubeadm and kubectl
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: yes
+
+    - name: Hold kubelet, kubeadm and kubectl at current version
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        mark_hold: yes
+
+    - name: Enable kubelet service
+      systemd:
+        name: kubelet
+        enabled: yes
+- name: Initialize Kubernetes control plane on first node
+  hosts: ec2_nodes
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Initialize control plane (runs only on first node)
+      command: kubeadm init --pod-network-cidr=192.168.0.0/16
+      args:
+        creates: /etc/kubernetes/admin.conf
+      when: inventory_hostname == groups['ec2_nodes'][0]
+
+    - name: Create .kube directory for ubuntu user
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0700'
+      when: inventory_hostname == groups['ec2_nodes'][0]
+
+    - name: Copy admin.conf to ubuntu kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: yes
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+      when: inventory_hostname == groups['ec2_nodes'][0]
+
+    - name: Install Calico CNI on control plane
+      become_user: ubuntu
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      shell: |
+        kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+      when: inventory_hostname == groups['ec2_nodes'][0]
+
+    - name: Generate kubeadm join command on control plane
+      command: kubeadm token create --print-join-command
+      register: kubeadm_join_cmd
+      when: inventory_hostname == groups['ec2_nodes'][0]
+      run_once: true
+
+    - name: Set join command fact on control plane
+      set_fact:
+        kubeadm_join_command: "{{ kubeadm_join_cmd.stdout }}"
+      when: inventory_hostname == groups['ec2_nodes'][0]
+- name: Join worker nodes to the cluster
+  hosts: ec2_nodes
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Run kubeadm join on worker nodes
+      command: "{{ hostvars[groups['ec2_nodes'][0]].kubeadm_join_command }} --v=5"
+      when: inventory_hostname != groups['ec2_nodes'][0]
