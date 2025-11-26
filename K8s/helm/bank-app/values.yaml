@@ -6,15 +6,13 @@ image:
   pullPolicy: IfNotPresent
 
 service:
-  type: LoadBalancer      
-  port: 80                
-  targetPort: 5000        
-
-resources: {}
+  type: LoadBalancer
+  port: 80
+  targetPort: 5000
 
 nfs:
   enabled: true
-  server: "10.0.0.10"           
-  path: "/srv/nfs/bank-app"     
-  size: "1Gi"
-  mountPath: "/app/data"        
+  server: 10.0.0.10        
+  path: /srv/nfs/bank-app
+  size: 1Gi
+  mountPath: /app/data
