@@ -67,23 +67,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
 
-      - name: Generate Ansible inventory
+      - name: Generate Ansible inventory (master + workers)
         working-directory: ./terraform
         run: |
-          ips=$(terraform output -json ec2_public_ips | jq -r '.[]')
+          readarray -t ips < <(terraform output -json ec2_public_ips | jq -r '.[]')
 
-          echo "[ec2_nodes]" > ../ansible/inventory.ini
-          for ip in $ips; do
-            echo "$ip" >> ../ansible/inventory.ini
-          done
+          MASTER_IP=${ips[0]}
+          WORKER1_IP=${ips[1]}
+          WORKER2_IP=${ips[2]}
 
           {
+            echo "[master]"
+            echo "$MASTER_IP"
             echo ""
-            echo "[ec2_nodes:vars]"
+            echo "[workers]"
+            echo "$WORKER1_IP"
+            echo "$WORKER2_IP"
+            echo ""
+            echo "[all:vars]"
             echo "ansible_user=ubuntu"
             echo "ansible_ssh_private_key_file=~/.ssh/vockey.pem"
             echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
-          } >> ../ansible/inventory.ini
+          } > ../ansible/inventory.ini
+
+          echo "MASTER_IP=$MASTER_IP" >> $GITHUB_ENV
 
       - name: Install Ansible
         run: |

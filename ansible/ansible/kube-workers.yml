@@ -1,0 +1,16 @@
+---
+- name: Join worker nodes to cluster
+  hosts: workers
+  become: yes
+
+  tasks:
+    - name: Copy join command script from master (provided via GitHub Actions)
+      copy:
+        src: ./kube_join.sh
+        dest: /home/ubuntu/kube_join.sh
+        mode: '0755'
+
+    - name: Join node to cluster
+      command: sh /home/ubuntu/kube_join.sh
+      args:
+        creates: /etc/kubernetes/kubelet.conf
