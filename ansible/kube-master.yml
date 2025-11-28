@@ -1,45 +1,61 @@
 ---
-- name: Initialize Kubernetes master node
+- name: Initialize Kubernetes control plane (Flannel)
   hosts: master
   become: yes
+  gather_facts: yes
+
+  vars:
+    pod_network_cidr: "10.244.0.0/16"
 
   tasks:
-    - name: Initialize Kubernetes cluster
-      command: kubeadm init --pod-network-cidr=192.168.0.0/16
-      register: init_output
+    - name: Initialize Kubernetes master with kubeadm
+      command: >
+        kubeadm init
+        --pod-network-cidr={{ pod_network_cidr }}
+        --ignore-preflight-errors=NumCPU,Mem
       args:
         creates: /etc/kubernetes/admin.conf
+      register: kubeadm_init
 
-    - name: Create .kube directory
+    - name: Create .kube directory for ubuntu user
       file:
         path: /home/ubuntu/.kube
         state: directory
         owner: ubuntu
         group: ubuntu
-        mode: '0755'
+        mode: '0700'
 
-    - name: Copy admin.conf to user's kube config
+    - name: Copy admin.conf to ubuntu kube config
       copy:
         src: /etc/kubernetes/admin.conf
         dest: /home/ubuntu/.kube/config
         remote_src: yes
         owner: ubuntu
         group: ubuntu
-        mode: '0644'
+        mode: '0600'
 
-    - name: Install Calico CNI network plugin
-      become: yes
+    # ============================
+    #         INSTALL FLANNEL
+    # ============================
+
+    - name: Apply Flannel CNI network plugin
       become_user: ubuntu
-      command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.2/manifests/calico.yaml
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      command: >
+        kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+      register: flannel_apply
+      changed_when: "'created' in flannel_apply.stdout or 'configured' in flannel_apply.stdout"
 
-    - name: Extract kubeadm join command
-      shell: kubeadm token create --print-join-command
+    # ============================
+    #  SAVE JOIN COMMAND
+    # ============================
+
+    - name: Generate join command on master
+      command: kubeadm token create --print-join-command
       register: join_cmd
+      changed_when: false
 
-    - name: Save join command to file
-      copy:
-        content: "{{ join_cmd.stdout }}"
-        dest: /home/ubuntu/kube_join.sh
-        owner: ubuntu
-        group: ubuntu
-        mode: '0755'
+    - name: Save join command as host fact on master
+      set_fact:
+        kube_join_command: "{{ join_cmd.stdout }}"
