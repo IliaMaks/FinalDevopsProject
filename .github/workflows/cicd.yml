@@ -91,6 +91,16 @@ jobs:
           } > ../ansible/inventory.ini
 
           echo "MASTER_IP=$MASTER_IP" >> $GITHUB_ENV
+          
+      - name: Show generated inventory
+        working-directory: ./ansible
+        run: |
+          echo "===== inventory.ini ====="
+          pwd
+          ls -la
+          echo
+          cat inventory.ini
+
 
       - name: Install Ansible
         run: |
