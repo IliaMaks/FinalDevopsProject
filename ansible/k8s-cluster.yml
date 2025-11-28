@@ -1,6 +1,6 @@
 ---
-- name: Prepare master and init Kubernetes control plane
-  hosts: ec2_nodes
+- name: Initialize Kubernetes control plane
+  hosts: master
   become: yes
   gather_facts: yes
 
@@ -8,16 +8,13 @@
     pod_network_cidr: "10.244.0.0/16"
 
   tasks:
-    - name: Mark first node as master
-      set_fact:
-        is_master: "{{ inventory_hostname == (groups['ec2_nodes'] | sort | first) }}"
-
     - name: Initialize Kubernetes master with kubeadm
       command: >
         kubeadm init
         --pod-network-cidr={{ pod_network_cidr }}
         --ignore-preflight-errors=NumCPU,Mem
-      when: is_master
+      args:
+        creates: /etc/kubernetes/admin.conf
       register: kubeadm_init
 
     - name: Create .kube directory for ubuntu user
@@ -27,7 +24,6 @@
         owner: ubuntu
         group: ubuntu
         mode: '0700'
-      when: is_master
 
     - name: Copy admin.conf to ubuntu kube config
       copy:
@@ -37,38 +33,42 @@
         owner: ubuntu
         group: ubuntu
         mode: '0600'
-      when: is_master
 
-    - name: Save join command to file on master
-      shell: |
-        kubeadm token create --print-join-command > /tmp/kube_join.sh
-        chmod +x /tmp/kube_join.sh
-      when: is_master
+    - name: Install Calico CNI
+      become_user: ubuntu
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      command: >
+        kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+      register: calico_apply
+      changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout"
 
-    - name: Fetch join command script to control machine
-      fetch:
-        src: /tmp/kube_join.sh
-        dest: /tmp/kube_join.sh
-        flat: yes
-      when: is_master
+    - name: Generate join command on master
+      command: kubeadm token create --print-join-command
+      register: join_cmd
+      changed_when: false
+
+    - name: Save join command as host fact on master
+      set_fact:
+        kube_join_command: "{{ join_cmd.stdout }}"
+
 
 - name: Join worker nodes to cluster
-  hosts: ec2_nodes
+  hosts: workers
   become: yes
   gather_facts: yes
 
   tasks:
-    - name: Mark first node as master again
-      set_fact:
-        is_master: "{{ inventory_hostname == (groups['ec2_nodes'] | sort | first) }}"
+    - name: Wait for Kubernetes API server to be reachable
+      wait_for:
+        host: "{{ hostvars[groups['master'][0]].ansible_host | default(groups['master'][0]) }}"
+        port: 6443
+        delay: 10
+        timeout: 300
+      delegate_to: localhost
+      run_once: true
 
-    - name: Copy join script from control to node
-      copy:
-        src: /tmp/kube_join.sh
-        dest: /tmp/kube_join.sh
-        mode: '0755'
-      when: not is_master
-
-    - name: Run join script on workers
-      command: /tmp/kube_join.sh
-      when: not is_master
+    - name: Join worker node to cluster
+      command: "{{ hostvars[groups['master'][0]].kube_join_command }} --ignore-preflight-errors=NumCPU,Mem"
+      args:
+        creates: /etc/kubernetes/kubelet.conf

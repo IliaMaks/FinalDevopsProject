@@ -1,6 +1,6 @@
 ---
 - name: Prepare nodes for Kubernetes
-  hosts: ec2_nodes
+  hosts: all
   become: yes
   gather_facts: yes
 
