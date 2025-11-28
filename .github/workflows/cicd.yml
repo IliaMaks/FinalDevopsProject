@@ -115,3 +115,8 @@ jobs:
         working-directory: ./ansible
         run: |
           ansible-playbook -i inventory.ini k8s-cluster.yml
+       
+      - name: Deploy bank app via Helm
+        working-directory: ./ansible
+        run: |
+          ansible-playbook -i inventory.ini k8s-app.yml
