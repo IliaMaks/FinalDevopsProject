@@ -48,10 +48,9 @@
       command: >
         kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
       register: calico_apply
+      until: calico_apply.rc == 0
       retries: 5
       delay: 15
-      until: calico_apply.rc == 0
-      changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout"
 
     - name: Generate join command on master
       command: kubeadm token create --print-join-command
@@ -62,21 +61,13 @@
       set_fact:
         kube_join_command: "{{ join_cmd.stdout }}"
 
+---
 - name: Join worker nodes to cluster
   hosts: workers
   become: yes
   gather_facts: yes
 
   tasks:
-    - name: Wait for Kubernetes API server to be reachable from control machine
-      wait_for:
-        host: "{{ hostvars[groups['master'][0]].ansible_host | default(groups['master'][0]) }}"
-        port: 6443
-        delay: 10
-        timeout: 300
-      delegate_to: localhost
-      run_once: true
-
     - name: Join worker node to cluster
       command: "{{ hostvars[groups['master'][0]].kube_join_command }} --ignore-preflight-errors=NumCPU,Mem"
       args:
