@@ -1,9 +1,55 @@
 ---
-- name: Init Kubernetes control plane (master)
+- name: Prepare master and init Kubernetes control plane
   hosts: master
   become: yes
 
   tasks:
+    - name: Install base dependencies on master
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Ensure /etc/apt/keyrings exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Kubernetes apt key (master)
+      shell: |
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key \
+        | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Add Kubernetes apt repo (master)
+      copy:
+        dest: /etc/apt/sources.list.d/kubernetes.list
+        content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
+        mode: "0644"
+
+    - name: Update apt cache (Kubernetes repo, master)
+      apt:
+        update_cache: yes
+
+    - name: Install kubelet, kubeadm and kubectl on master
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+
+    - name: Hold kubelet, kubeadm and kubectl on master
+      command: apt-mark hold kubelet kubeadm kubectl
+      changed_when: false
+
     - name: Initialize Kubernetes master with kubeadm
       command: kubeadm init --pod-network-cidr=10.244.0.0/16
       args:
@@ -40,13 +86,59 @@
         join_command: "{{ kube_join_cmd.stdout }}"
       run_once: true
 
-# -------------------------------------------------------------------
+# -----------------------------------------------------------
 
 - name: Join worker nodes to the cluster
   hosts: workers
   become: yes
 
   tasks:
+    - name: Install base dependencies on workers
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Ensure /etc/apt/keyrings exists (workers)
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Kubernetes apt key (workers)
+      shell: |
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key \
+        | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Add Kubernetes apt repo (workers)
+      copy:
+        dest: /etc/apt/sources.list.d/kubernetes.list
+        content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
+        mode: "0644"
+
+    - name: Update apt cache (Kubernetes repo, workers)
+      apt:
+        update_cache: yes
+
+    - name: Install kubelet, kubeadm and kubectl on workers
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+
+    - name: Hold kubelet, kubeadm and kubectl on workers
+      command: apt-mark hold kubelet kubeadm kubectl
+      changed_when: false
+
     - name: Join worker to control plane
       command: "{{ hostvars[groups['master'][0]].join_command }} --ignore-preflight-errors=all"
       args:
