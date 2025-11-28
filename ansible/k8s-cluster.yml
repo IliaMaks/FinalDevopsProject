@@ -1,59 +1,24 @@
 ---
 - name: Prepare master and init Kubernetes control plane
-  hosts: master
+  hosts: ec2_nodes
   become: yes
+  gather_facts: yes
+
+  vars:
+    pod_network_cidr: "10.244.0.0/16"
 
   tasks:
-    - name: Install base dependencies on master
-      apt:
-        name:
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - gnupg
-          - lsb-release
-        state: present
-        update_cache: yes
-
-    - name: Ensure /etc/apt/keyrings exists
-      file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: "0755"
-
-    - name: Add Kubernetes apt key (master)
-      shell: |
-        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key \
-        | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-      args:
-        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-
-    - name: Add Kubernetes apt repo (master)
-      copy:
-        dest: /etc/apt/sources.list.d/kubernetes.list
-        content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
-        mode: "0644"
-
-    - name: Update apt cache (Kubernetes repo, master)
-      apt:
-        update_cache: yes
-
-    - name: Install kubelet, kubeadm and kubectl on master
-      apt:
-        name:
-          - kubelet
-          - kubeadm
-          - kubectl
-        state: present
-
-    - name: Hold kubelet, kubeadm and kubectl on master
-      command: apt-mark hold kubelet kubeadm kubectl
-      changed_when: false
+    - name: Mark first node as master
+      set_fact:
+        is_master: "{{ inventory_hostname == (groups['ec2_nodes'] | sort | first) }}"
 
     - name: Initialize Kubernetes master with kubeadm
-      command: kubeadm init --pod-network-cidr=10.244.0.0/16
-      args:
-        creates: /etc/kubernetes/admin.conf
+      command: >
+        kubeadm init
+        --pod-network-cidr={{ pod_network_cidr }}
+        --ignore-preflight-errors=NumCPU,Mem
+      when: is_master
+      register: kubeadm_init
 
     - name: Create .kube directory for ubuntu user
       file:
@@ -61,85 +26,49 @@
         state: directory
         owner: ubuntu
         group: ubuntu
-        mode: "0755"
+        mode: '0700'
+      when: is_master
 
-    - name: Copy admin.conf to ubuntu kubeconfig
+    - name: Copy admin.conf to ubuntu kube config
       copy:
         src: /etc/kubernetes/admin.conf
         dest: /home/ubuntu/.kube/config
+        remote_src: yes
         owner: ubuntu
         group: ubuntu
-        mode: "0644"
+        mode: '0600'
+      when: is_master
 
-    - name: Install Calico CNI
-      command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/calico.yaml
-      environment:
-        KUBECONFIG: /etc/kubernetes/admin.conf
+    - name: Save join command to file on master
+      shell: |
+        kubeadm token create --print-join-command > /tmp/kube_join.sh
+        chmod +x /tmp/kube_join.sh
+      when: is_master
 
-    - name: Get join command for worker nodes
-      command: kubeadm token create --print-join-command
-      register: kube_join_cmd
-      changed_when: false
+    - name: Fetch join command script to control machine
+      fetch:
+        src: /tmp/kube_join.sh
+        dest: /tmp/kube_join.sh
+        flat: yes
+      when: is_master
 
-    - name: Save join command as fact
-      set_fact:
-        join_command: "{{ kube_join_cmd.stdout }}"
-      run_once: true
-
-# -----------------------------------------------------------
-
-- name: Join worker nodes to the cluster
-  hosts: workers
+- name: Join worker nodes to cluster
+  hosts: ec2_nodes
   become: yes
+  gather_facts: yes
 
   tasks:
-    - name: Install base dependencies on workers
-      apt:
-        name:
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - gnupg
-          - lsb-release
-        state: present
-        update_cache: yes
+    - name: Mark first node as master again
+      set_fact:
+        is_master: "{{ inventory_hostname == (groups['ec2_nodes'] | sort | first) }}"
 
-    - name: Ensure /etc/apt/keyrings exists (workers)
-      file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: "0755"
-
-    - name: Add Kubernetes apt key (workers)
-      shell: |
-        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key \
-        | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-      args:
-        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-
-    - name: Add Kubernetes apt repo (workers)
+    - name: Copy join script from control to node
       copy:
-        dest: /etc/apt/sources.list.d/kubernetes.list
-        content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
-        mode: "0644"
+        src: /tmp/kube_join.sh
+        dest: /tmp/kube_join.sh
+        mode: '0755'
+      when: not is_master
 
-    - name: Update apt cache (Kubernetes repo, workers)
-      apt:
-        update_cache: yes
-
-    - name: Install kubelet, kubeadm and kubectl on workers
-      apt:
-        name:
-          - kubelet
-          - kubeadm
-          - kubectl
-        state: present
-
-    - name: Hold kubelet, kubeadm and kubectl on workers
-      command: apt-mark hold kubelet kubeadm kubectl
-      changed_when: false
-
-    - name: Join worker to control plane
-      command: "{{ hostvars[groups['master'][0]].join_command }} --ignore-preflight-errors=all"
-      args:
-        creates: /etc/kubernetes/kubelet.conf
+    - name: Run join script on workers
+      command: /tmp/kube_join.sh
+      when: not is_master
