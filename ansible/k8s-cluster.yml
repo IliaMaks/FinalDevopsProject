@@ -34,6 +34,13 @@
         group: ubuntu
         mode: '0600'
 
+    - name: Wait for kube-apiserver to be reachable on master
+      wait_for:
+        host: 127.0.0.1
+        port: 6443
+        delay: 10
+        timeout: 300
+
     - name: Install Calico CNI
       become_user: ubuntu
       environment:
@@ -41,6 +48,9 @@
       command: >
         kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
       register: calico_apply
+      retries: 5
+      delay: 15
+      until: calico_apply.rc == 0
       changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout"
 
     - name: Generate join command on master
@@ -52,14 +62,14 @@
       set_fact:
         kube_join_command: "{{ join_cmd.stdout }}"
 
-
+---
 - name: Join worker nodes to cluster
   hosts: workers
   become: yes
   gather_facts: yes
 
   tasks:
-    - name: Wait for Kubernetes API server to be reachable
+    - name: Wait for Kubernetes API server to be reachable from control machine
       wait_for:
         host: "{{ hostvars[groups['master'][0]].ansible_host | default(groups['master'][0]) }}"
         port: 6443
