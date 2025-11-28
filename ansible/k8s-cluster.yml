@@ -62,7 +62,6 @@
       set_fact:
         kube_join_command: "{{ join_cmd.stdout }}"
 
----
 - name: Join worker nodes to cluster
   hosts: workers
   become: yes
