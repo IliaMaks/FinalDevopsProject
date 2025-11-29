@@ -124,3 +124,11 @@ jobs:
         working-directory: ./ansible
         run: |
           ansible-playbook -i inventory.ini k8s-app.yml
+
+      - name: Show application URL
+        working-directory: ./terraform
+        run: |
+          ALB_DNS=$(terraform output -raw alb_dns)
+          echo "======================================"
+          echo " Application URL: http://$ALB_DNS/"
+          echo "======================================"
