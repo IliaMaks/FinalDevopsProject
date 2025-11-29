@@ -34,12 +34,16 @@
         group: ubuntu
         mode: '0600'
 
-    - name: Wait for kube-apiserver to be reachable on master
-      wait_for:
-        host: 127.0.0.1
-        port: 6443
-        delay: 10
-        timeout: 300
+    - name: Wait for Kubernetes API to respond
+      become_user: ubuntu
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      command: kubectl get nodes
+      register: kubectl_check
+      until: kubectl_check.rc == 0
+      retries: 10
+      delay: 10
+      changed_when: false
 
     - name: Apply Flannel CNI network plugin
       become_user: ubuntu
@@ -48,7 +52,21 @@
       command: >
         kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
       register: flannel_apply
+      until: flannel_apply.rc == 0
+      retries: 10
+      delay: 15
       changed_when: "'created' in flannel_apply.stdout or 'configured' in flannel_apply.stdout"
+
+    - name: Wait a bit for Flannel pods to start
+      become_user: ubuntu
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      command: kubectl get pods -n kube-system
+      register: pods_check
+      until: "'kube-flannel' in pods_check.stdout"
+      retries: 12
+      delay: 10
+      changed_when: false
 
     - name: Generate join command on master
       command: kubeadm token create --print-join-command
@@ -58,7 +76,6 @@
     - name: Save join command as host fact on master
       set_fact:
         kube_join_command: "{{ join_cmd.stdout }}"
-
 
 - name: Join worker nodes to cluster
   hosts: workers
