@@ -7,14 +7,19 @@
   vars:
     pod_network_cidr: "10.244.0.0/16"
     kube_apiserver_advertise_address: "{{ lookup('env', 'MASTER_IP') | default(ansible_host | default(ansible_default_ipv4.address), true) }}"
+    cri_socket: "unix:///run/containerd/containerd.sock"
 
   tasks:
+    - name: Pre-pull control plane images
+      command: kubeadm config images pull --cri-socket {{ cri_socket }}
+
     - name: Initialize Kubernetes master with kubeadm
       command: >
         kubeadm init
         --pod-network-cidr={{ pod_network_cidr }}
         --ignore-preflight-errors=NumCPU,Mem
         --apiserver-advertise-address={{ kube_apiserver_advertise_address }}
+        --cri-socket {{ cri_socket }}
       args:
         creates: /etc/kubernetes/admin.conf
       register: kubeadm_init
@@ -86,6 +91,6 @@
 
   tasks:
     - name: Join worker node to cluster
-      command: "{{ hostvars[groups['master'][0]].kube_join_command }} --ignore-preflight-errors=NumCPU,Mem"
+      command: "{{ hostvars[groups['master'][0]].kube_join_command }} --ignore-preflight-errors=NumCPU,Mem --cri-socket unix:///run/containerd/containerd.sock"
       args:
         creates: /etc/kubernetes/kubelet.conf

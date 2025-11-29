@@ -16,9 +16,11 @@
         state: present
         update_cache: yes
 
-    - name: Install containerd
+    - name: Install containerd and cri-tools
       apt:
-        name: containerd
+        name:
+          - containerd
+          - cri-tools
         state: present
 
     - name: Enable and start containerd service
@@ -52,6 +54,33 @@
 
     - name: Apply sysctl params
       command: sysctl --system
+
+    - name: Generate default containerd config
+      command: containerd config default
+      register: containerd_cfg
+
+    - name: Write containerd config with systemd cgroup and pause 3.9
+      copy:
+        dest: /etc/containerd/config.toml
+        content: "{{ containerd_cfg.stdout | regex_replace('SystemdCgroup = false', 'SystemdCgroup = true') | regex_replace('sandbox_image = \"registry.k8s.io/pause:3.8\"', 'sandbox_image = \"registry.k8s.io/pause:3.9\"') }}"
+        mode: '0644'
+
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+        enabled: yes
+
+    - name: Disable swap
+      command: swapoff -a
+      args:
+        warn: false
+
+    - name: Comment out swap in /etc/fstab
+      replace:
+        path: /etc/fstab
+        regexp: '^(.*\s+swap\s+.*)$'
+        replace: '# \1'
 
     - name: Add Kubernetes apt key
       apt_key:
