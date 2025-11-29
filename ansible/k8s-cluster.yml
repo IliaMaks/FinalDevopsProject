@@ -6,6 +6,7 @@
 
   vars:
     pod_network_cidr: "10.244.0.0/16"
+    kube_apiserver_advertise_address: "{{ lookup('env', 'MASTER_IP') | default(ansible_host | default(ansible_default_ipv4.address), true) }}"
 
   tasks:
     - name: Initialize Kubernetes master with kubeadm
@@ -13,6 +14,7 @@
         kubeadm init
         --pod-network-cidr={{ pod_network_cidr }}
         --ignore-preflight-errors=NumCPU,Mem
+        --apiserver-advertise-address={{ kube_apiserver_advertise_address }}
       args:
         creates: /etc/kubernetes/admin.conf
       register: kubeadm_init
@@ -63,7 +65,7 @@
         KUBECONFIG: /home/ubuntu/.kube/config
       command: kubectl get pods -n kube-system
       register: pods_check
-      until: "'kube-flannel' in pods_check.stdout"
+      until: pods_check.rc == 0 and "'kube-flannel' in pods_check.stdout"
       retries: 12
       delay: 10
       changed_when: false
