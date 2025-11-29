@@ -1,0 +1,38 @@
+---
+- name: Setup NFS server for bank app
+  hosts: master
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Install NFS server packages
+      apt:
+        name: nfs-kernel-server
+        state: present
+        update_cache: yes
+
+    - name: Create export directory for bank app
+      file:
+        path: /srv/nfs/bank-app
+        state: directory
+        owner: nobody
+        group: nogroup
+        mode: '0777'
+
+    - name: Configure NFS export for cluster
+      lineinfile:
+        path: /etc/exports
+        regexp: '^/srv/nfs/bank-app '
+        line: "/srv/nfs/bank-app 10.0.0.0/16(rw,sync,no_subtree_check,no_root_squash)"
+        create: yes
+      notify: Reload NFS exports
+
+    - name: Ensure NFS server is enabled and running
+      systemd:
+        name: nfs-kernel-server
+        enabled: yes
+        state: started
+
+  handlers:
+    - name: Reload NFS exports
+      command: exportfs -ra

@@ -9,7 +9,7 @@
     chart_src: "../K8s/helm/bank-app"
     chart_dest: "/home/ubuntu/bank-app-chart"
     release_name: "bank-app"
-    namespace: "default"
+    k8s_namespace: "default"
 
   tasks:
     - name: Install Helm 3 if not present
@@ -32,4 +32,5 @@
         KUBECONFIG: /home/ubuntu/.kube/config
       command: >
         helm upgrade --install {{ release_name }} {{ chart_dest }}
-        --namespace {{ namespace }} --create-namespace
+        --namespace {{ k8s_namespace }} --create-namespace
+        --set nfs.server={{ ansible_default_ipv4.address }}

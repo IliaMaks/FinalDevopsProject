@@ -101,15 +101,19 @@ jobs:
           echo
           cat inventory.ini
 
-
       - name: Install Ansible
         run: |
           sudo apt-get install -y ansible
 
-      - name: Run Ansible playbook
+      - name: Run Ansible playbook (k8s setup)
         working-directory: ./ansible
         run: |
           ansible-playbook -i inventory.ini k8s-setup.yml
+
+      - name: Run Ansible playbook (NFS server)
+        working-directory: ./ansible
+        run: |
+          ansible-playbook -i inventory.ini nfs-server.yml
 
       - name: Run Ansible playbook (init cluster & join workers)
         working-directory: ./ansible

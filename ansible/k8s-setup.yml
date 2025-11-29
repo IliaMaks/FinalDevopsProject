@@ -21,6 +21,11 @@
         name: containerd
         state: present
 
+    - name: Install NFS client utilities
+      apt:
+        name: nfs-common
+        state: present
+
     - name: Enable and start containerd service
       systemd:
         name: containerd
