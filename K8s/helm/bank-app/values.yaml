@@ -9,10 +9,11 @@ service:
   type: LoadBalancer
   port: 80
   targetPort: 5000
+  nodePort: 30080
 
 nfs:
   enabled: true
   server: 10.0.0.10        
   path: /srv/nfs/bank-app
   size: 1Gi
-  mountPath: /data         
+  mountPath: /data
