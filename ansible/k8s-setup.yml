@@ -77,8 +77,6 @@
 
     - name: Disable swap
       command: swapoff -a
-      args:
-        warn: false
 
     - name: Comment out swap in /etc/fstab
       replace:
