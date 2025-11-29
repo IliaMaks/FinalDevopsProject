@@ -70,7 +70,7 @@
         KUBECONFIG: /home/ubuntu/.kube/config
       command: kubectl get pods -n kube-system
       register: pods_check
-      until: pods_check.rc == 0 and "'kube-flannel' in pods_check.stdout"
+      until: pods_check.rc == 0 and ('kube-flannel' in pods_check.stdout)
       retries: 12
       delay: 10
       changed_when: false
