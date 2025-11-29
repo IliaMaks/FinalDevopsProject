@@ -16,11 +16,9 @@
         state: present
         update_cache: yes
 
-    - name: Install containerd and cri-tools
+    - name: Install containerd
       apt:
-        name:
-          - containerd
-          - cri-tools
+        name: containerd
         state: present
 
     - name: Enable and start containerd service
@@ -97,9 +95,10 @@
       apt:
         update_cache: yes
 
-    - name: Install kubelet, kubeadm and kubectl
+    - name: Install cri-tools, kubelet, kubeadm and kubectl
       apt:
         name:
+          - cri-tools
           - kubelet
           - kubeadm
           - kubectl

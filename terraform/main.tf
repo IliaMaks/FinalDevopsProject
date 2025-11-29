@@ -102,9 +102,10 @@ resource "aws_route_table_association" "public_b_association" {
 
 resource "aws_security_group" "ec2_sg" {
   name        = "final-devops-ec2-sg"
-  description = "Allow SSH, HTTP"
+  description = "Allow SSH, HTTP, and k8s cluster traffic"
   vpc_id      = aws_vpc.main.id
 
+  # Public access
   ingress {
     description = "HTTP"
     from_port   = 80
@@ -120,8 +121,8 @@ resource "aws_security_group" "ec2_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-   
-    ingress {
+
+  ingress {
     description = "Kubernetes API"
     from_port   = 6443
     to_port     = 6443
@@ -129,8 +130,39 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Intra-cluster traffic
+  ingress {
+    description = "All intra-cluster traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
+  }
 
- 
+  ingress {
+    description = "Kubelet API"
+    from_port   = 10250
+    to_port     = 10250
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  ingress {
+    description = "Flannel VXLAN"
+    from_port   = 8472
+    to_port     = 8472
+    protocol    = "udp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  ingress {
+    description = "NodePort range"
+    from_port   = 30000
+    to_port     = 32767
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # сузь до VPC, если не нужен внешний доступ
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -148,14 +180,12 @@ resource "aws_security_group" "ec2_sg" {
 ##############################
 
 resource "aws_instance" "nodes" {
-  count                   = 3
-  ami                     = var.ec2_ami
-  instance_type           = var.ec2_type
-  subnet_id               = (count.index % 2 == 0 ? aws_subnet.public_a.id : aws_subnet.public_b.id)
-  vpc_security_group_ids  = [aws_security_group.ec2_sg.id]
-
- 
-  key_name = "vockey"
+  count                  = 3
+  ami                    = var.ec2_ami
+  instance_type          = var.ec2_type
+  subnet_id              = (count.index % 2 == 0 ? aws_subnet.public_a.id : aws_subnet.public_b.id)
+  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  key_name               = "vockey"
 
   tags = {
     Name = "final-devops-node-${count.index + 1}"
