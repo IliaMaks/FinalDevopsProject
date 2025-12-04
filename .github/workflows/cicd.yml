@@ -49,6 +49,7 @@ jobs:
         run: terraform init
 
       - name: Terraform Destroy (cleanup previous run)
+      # Clean up any previous infrastructure so the pipeline stays idempotent .Not working , usefull in reak life!!!!!!!!
         working-directory: ./terraform
         run: terraform destroy -auto-approve || true
 
@@ -68,6 +69,7 @@ jobs:
           sudo apt-get install -y jq
 
       - name: Generate Ansible inventory (master + workers)
+       # Assumes ec2_public_ips are returned in order: master, worker1, worker2
         working-directory: ./terraform
         run: |
           readarray -t ips < <(terraform output -json ec2_public_ips | jq -r '.[]')

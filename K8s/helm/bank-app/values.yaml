@@ -6,6 +6,7 @@ image:
   pullPolicy: IfNotPresent
 
 service:
+# NodePort must match terraform/main.tf (aws_lb_target_group.tg.port)
   type: LoadBalancer
   port: 80
   targetPort: 5000
@@ -13,7 +14,9 @@ service:
 
 nfs:
   enabled: true
-  server: 10.0.0.10        
+  # In real deploy this IP is overridden from Ansible (k8s-app.yml) via --set nfs.server=...
+  server: 10.0.0.10
+   # Must match NFS export path from ansible/nfs-server.yml        
   path: /srv/nfs/bank-app
   size: 1Gi
   mountPath: /data

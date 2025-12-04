@@ -31,6 +31,7 @@
       environment:
         KUBECONFIG: /home/ubuntu/.kube/config
       command: >
+        # Pass master node IP to Helm to use as NFS server (overrides value in values.yaml)
         helm upgrade --install {{ release_name }} {{ chart_dest }}
         --namespace {{ k8s_namespace }} --create-namespace
         --set nfs.server={{ ansible_default_ipv4.address }}

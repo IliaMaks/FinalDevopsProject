@@ -217,6 +217,7 @@ resource "aws_lb" "alb" {
 
 resource "aws_lb_target_group" "tg" {
   name     = "final-devops-tg"
+   # Must match service.nodePort from K8s/helm/bank-app/values.yaml
   port     = 30080
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
